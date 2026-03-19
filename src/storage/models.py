@@ -10,11 +10,9 @@ from sqlalchemy import (
     Text,
     func,
 )
-from sqlalchemy.orm import DeclarativeBase, relationship
+from sqlalchemy.orm import declarative_base, relationship
 
-
-class Base(DeclarativeBase):
-    pass
+Base = declarative_base()
 
 
 class Creator(Base):

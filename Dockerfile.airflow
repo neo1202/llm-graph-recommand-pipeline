@@ -1,0 +1,9 @@
+FROM apache/airflow:2.10.4-python3.11
+
+USER airflow
+
+# Install app-specific dependencies (skip Airflow's constraint file to allow version flexibility)
+COPY requirements-airflow.txt /tmp/requirements-airflow.txt
+RUN pip install --no-cache-dir -r /tmp/requirements-airflow.txt --constraint /dev/null
+
+# App code is mounted via docker-compose volumes, not copied here

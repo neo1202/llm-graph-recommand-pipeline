@@ -1,16 +1,11 @@
-fastapi==0.115.6
-uvicorn==0.34.0
+# Extra dependencies for Airflow workers (app-specific only)
+# Airflow + SQLAlchemy are provided by the official base image
 openai==1.58.1
 neo4j==5.27.0
-sqlalchemy==2.0.36
 psycopg2-binary==2.9.10
-alembic==1.14.0
 pydantic==2.10.4
 pydantic-settings==2.7.0
 pyyaml==6.0.2
-faker==33.1.0
 httpx==0.28.1
-numpy==2.2.1
-scikit-learn==1.6.0
 google-cloud-storage==2.18.2
 google-cloud-bigquery==3.27.0

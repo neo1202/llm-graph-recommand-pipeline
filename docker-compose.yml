@@ -1,12 +1,14 @@
 x-airflow-common: &airflow-common
-  build: .
+  build:
+    context: .
+    dockerfile: Dockerfile.airflow
   environment: &airflow-env
     AIRFLOW__CORE__EXECUTOR: LocalExecutor
-    AIRFLOW__CORE__DAGS_FOLDER: /app/dags
+    AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/dags
     AIRFLOW__CORE__LOAD_EXAMPLES: "false"
     AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql://airflow:airflow@airflow-db:5432/airflow
     AIRFLOW__WEBSERVER__SECRET_KEY: ikala-airflow-secret
-    PYTHONPATH: /app
+    PYTHONPATH: /opt/airflow
     # App env vars
     OPENAI_API_KEY: ${OPENAI_API_KEY}
     YOUTUBE_API_KEY: ${YOUTUBE_API_KEY}
@@ -18,13 +20,11 @@ x-airflow-common: &airflow-common
     GCS_BUCKET: ${GCS_BUCKET:-}
     BIGQUERY_DATASET: ${BIGQUERY_DATASET:-ikala_analytics}
   volumes:
-    - ./src:/app/src
-    - ./dags:/app/dags
-    - ./scripts:/app/scripts
-    - ./config:/app/config
-    - ./data:/app/data
-    - ./airflow/logs:/opt/airflow/logs
-    - ${GOOGLE_APPLICATION_CREDENTIALS:-/dev/null}:/app/gcp-key.json:ro
+    - ./src:/opt/airflow/src
+    - ./dags:/opt/airflow/dags
+    - ./config:/opt/airflow/config
+    - ./data:/opt/airflow/data
+    - airflow_logs:/opt/airflow/logs
   depends_on:
     neo4j:
       condition: service_healthy
@@ -140,3 +140,4 @@ volumes:
   neo4j_data:
   pg_data:
   airflow_db_data:
+  airflow_logs:
