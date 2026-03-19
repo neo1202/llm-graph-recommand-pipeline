@@ -5,7 +5,6 @@ from sqlalchemy.orm import Session
 
 from src.api.dependencies import get_db, get_neo4j, get_quality_gate, get_tagger
 from src.graph.neo4j_client import Neo4jClient
-from src.graph.queries import add_creator_tag, clear_creator_tags, upsert_creator
 from src.quality.gate import QualityGate
 from src.storage.models import AuditLog, Creator, ReviewQueue, TaggingResult
 from src.tagging.llm_tagger import LLMTagger
@@ -18,7 +17,6 @@ router = APIRouter(prefix="/api/v1")
 def tag_creator(
     creator: CreatorInput,
     db: Session = Depends(get_db),
-    neo4j: Neo4jClient = Depends(get_neo4j),
     tagger: LLMTagger = Depends(get_tagger),
     quality_gate: QualityGate = Depends(get_quality_gate),
 ):
@@ -30,7 +28,7 @@ def tag_creator(
     # Step 2: Quality Gates
     qa_report = quality_gate.validate(tagging_result)
 
-    # Step 3: Store in PostgreSQL
+    # Step 3: Store in PostgreSQL (staging only — Neo4j write deferred until review approval)
     db_creator = db.query(Creator).filter_by(channel_id=creator.channel_id).first()
     if not db_creator:
         db_creator = Creator(
@@ -39,6 +37,7 @@ def tag_creator(
             description=creator.description,
             subscriber_count=creator.subscriber_count,
             region=creator.region,
+            video_titles=json.dumps(creator.recent_video_titles),
         )
         db.add(db_creator)
         db.flush()
@@ -52,23 +51,13 @@ def tag_creator(
             confidence=tag.confidence,
         ))
 
-    # Step 4: Store in Neo4j
-    upsert_creator(neo4j, creator.channel_id, creator.name, creator.region)
-    clear_creator_tags(neo4j, creator.channel_id)
-    for tag in qa_report.filtered_l1_tags + qa_report.filtered_l2_tags:
-        add_creator_tag(
-            neo4j, creator.channel_id, tag.tag,
-            tag.confidence, tagging_result.prompt_version,
-        )
-
-    # Step 5: Flag issues
-    if qa_report.issues:
-        for issue in qa_report.issues:
-            db.add(ReviewQueue(
-                creator_id=db_creator.id,
-                reason=issue["type"],
-                details=json.dumps(issue),
-            ))
+    # Step 4: Add to review queue
+    has_issues = len(qa_report.issues) > 0
+    db.add(ReviewQueue(
+        creator_id=db_creator.id,
+        reason="flagged" if has_issues else "auto_pass",
+        details=json.dumps(qa_report.issues) if has_issues else "[]",
+    ))
 
     db.add(AuditLog(
         creator_id=db_creator.id,

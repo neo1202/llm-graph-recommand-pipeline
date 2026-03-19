@@ -13,7 +13,8 @@
         #graph-box { width: 100%; height: 560px; }
         .fade-enter-active { animation: fadeUp .25s ease-out; }
         @keyframes fadeUp { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
-        .tag-pill { @apply inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium cursor-default; }
+        .tag-pill { @apply inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-all; }
+        .tag-pill-click { @apply cursor-pointer hover:scale-105 hover:shadow-sm; }
     </style>
 </head>
 <body class="bg-slate-50 min-h-screen text-slate-800">
@@ -34,7 +35,7 @@
 <!-- Tabs -->
 <nav class="bg-brand-900 border-b border-brand-800/50">
     <div class="max-w-7xl mx-auto px-6 flex">
-        <button v-for="t in tabs" :key="t.id" @click="tab=t.id"
+        <button v-for="t in tabs" :key="t.id" @click="switchTab(t.id)"
                 :class="['px-5 py-2.5 text-[13px] font-medium transition-all rounded-t-lg -mb-px',
                          tab===t.id ? 'bg-slate-50 text-brand-700' : 'text-brand-200/60 hover:text-white']">
             {{ t.label }}
@@ -137,7 +138,7 @@
     <div v-else-if="!reviewItems.length" class="text-center py-16 text-sm text-slate-300">No items</div>
 
     <div v-for="item in reviewItems" :key="item.review_id" :id="'rv-'+item.review_id"
-         :class="['bg-white rounded-xl border shadow-sm mb-3 overflow-hidden transition-all',
+         :class="['bg-white rounded-xl border shadow-sm mb-4 overflow-hidden transition-all',
                   item.has_issues ? 'border-red-200' : 'border-emerald-200']">
         <!-- Status bar -->
         <div :class="['px-5 py-1.5 text-[11px] font-medium uppercase tracking-wider flex items-center justify-between',
@@ -147,28 +148,27 @@
         </div>
 
         <div class="p-5">
-            <!-- Creator info -->
-            <div class="flex items-start gap-4 mb-4">
-                <div class="flex-1 min-w-0">
-                    <div class="flex items-center gap-2 mb-1">
-                        <h3 class="font-semibold text-[15px]">{{ item.creator.name }}</h3>
-                        <span class="text-[11px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">{{ (item.creator.subscriber_count||0).toLocaleString() }} subs</span>
-                        <span class="text-[11px] bg-blue-50 text-blue-500 px-2 py-0.5 rounded-full">{{ item.creator.region }}</span>
-                    </div>
-                    <p class="text-xs text-slate-400 line-clamp-2">{{ item.creator.description }}</p>
-                </div>
-            </div>
-
-            <!-- Current tags -->
+            <!-- Creator info - FULL -->
             <div class="mb-4">
-                <p class="text-[11px] font-medium text-slate-400 uppercase tracking-wider mb-2">Current Tags</p>
-                <div class="flex flex-wrap gap-1.5">
-                    <span v-for="t in item.tags"
-                          :class="['tag-pill', t.level==='L1' ? 'bg-red-50 text-red-600' : 'bg-blue-50 text-blue-600',
-                                   t.confidence < 0.7 ? 'ring-2 ring-amber-300' : '']">
-                        {{ t.tag }}
-                        <span :class="t.confidence < 0.7 ? 'text-amber-500 font-semibold' : 'opacity-50'">{{ t.confidence.toFixed(2) }}</span>
-                    </span>
+                <div class="flex items-center gap-2 mb-2">
+                    <h3 class="font-semibold text-[15px]">{{ item.creator.name }}</h3>
+                    <span class="text-[11px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">{{ (item.creator.subscriber_count||0).toLocaleString() }} subs</span>
+                    <span class="text-[11px] bg-blue-50 text-blue-500 px-2 py-0.5 rounded-full">{{ item.creator.region }}</span>
+                    <span class="text-[11px] text-slate-300 font-mono ml-auto">{{ item.creator.channel_id }}</span>
+                </div>
+
+                <!-- Full description -->
+                <div class="mb-3">
+                    <p class="text-[11px] font-medium text-slate-400 uppercase tracking-wider mb-1">Description</p>
+                    <p class="text-xs text-slate-500 leading-relaxed whitespace-pre-line max-h-32 overflow-y-auto">{{ item.creator.description || 'No description' }}</p>
+                </div>
+
+                <!-- Recent video titles -->
+                <div v-if="item.creator.video_titles?.length">
+                    <p class="text-[11px] font-medium text-slate-400 uppercase tracking-wider mb-1">Recent Videos</p>
+                    <ul class="space-y-0.5">
+                        <li v-for="v in item.creator.video_titles" class="text-xs text-slate-500 truncate">· {{ v }}</li>
+                    </ul>
                 </div>
             </div>
 
@@ -180,20 +180,59 @@
                 </div>
             </div>
 
-            <!-- Edit & Actions -->
-            <div class="flex items-end gap-3 pt-3 border-t border-slate-100">
-                <div class="flex-1">
-                    <label class="text-[11px] text-slate-400 mb-1 block">Edit tags (comma-separated, leave empty to keep current)</label>
-                    <input :id="'edit-'+item.review_id" type="text"
-                           :placeholder="item.tags.map(t=>t.tag).join(', ')"
-                           class="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-sm placeholder:text-slate-300 outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400 transition">
+            <!-- Click-to-toggle Tag Editor -->
+            <div class="mb-4 p-4 bg-slate-50 rounded-lg border border-slate-100">
+                <!-- Current tags -->
+                <div class="mb-3">
+                    <p class="text-[11px] font-medium text-emerald-600 uppercase tracking-wider mb-2">Current Tags <span class="text-slate-400 normal-case">(click to remove)</span></p>
+                    <div class="flex flex-wrap gap-1.5 min-h-[32px]">
+                        <span v-if="!getEditState(item.review_id).currentTags.length" class="text-xs text-slate-300 italic">No tags selected</span>
+                        <span v-for="t in getEditState(item.review_id).currentTags"
+                              @click="removeTag(item.review_id, t)"
+                              :class="['tag-pill tag-pill-click',
+                                       t.level==='L1' ? 'bg-red-100 text-red-700 hover:bg-red-200' : 'bg-blue-100 text-blue-700 hover:bg-blue-200',
+                                       t.confidence < 0.7 ? 'ring-2 ring-amber-300' : '']">
+                            {{ t.tag }}
+                            <span :class="t.confidence < 0.7 ? 'text-amber-500 font-semibold' : 'opacity-50'">{{ t.confidence.toFixed(2) }}</span>
+                            <span class="text-[10px] opacity-40 ml-0.5">x</span>
+                        </span>
+                    </div>
                 </div>
+
+                <!-- Candidate tags grouped by L1 -->
+                <div>
+                    <p class="text-[11px] font-medium text-slate-400 uppercase tracking-wider mb-2">Available Tags <span class="text-slate-300 normal-case">(click to add)</span></p>
+                    <div v-for="group in taxonomy" :key="group.l1" class="mb-2">
+                        <div class="flex flex-wrap gap-1 items-center">
+                            <!-- L1 tag -->
+                            <span v-if="!isTagActive(item.review_id, group.l1)"
+                                  @click="addTag(item.review_id, {tag: group.l1, level: 'L1', confidence: 1.0})"
+                                  class="tag-pill tag-pill-click bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 border border-dashed border-red-200">
+                                + {{ group.l1 }}
+                            </span>
+                            <!-- L2 tags -->
+                            <template v-for="l2 in group.children">
+                                <span v-if="!isTagActive(item.review_id, l2)"
+                                      @click="addTag(item.review_id, {tag: l2, level: 'L2', confidence: 1.0})"
+                                      class="tag-pill tag-pill-click bg-blue-50/50 text-blue-400 hover:bg-blue-100 hover:text-blue-600 border border-dashed border-blue-200">
+                                    + {{ l2 }}
+                                </span>
+                            </template>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="flex items-center gap-3 pt-3 border-t border-slate-100">
+                <span v-if="hasTagChanges(item.review_id)" class="text-[11px] text-amber-500 font-medium">Tags modified</span>
+                <div class="flex-1"></div>
                 <button @click="resolveReview(item.review_id, 'approve')"
-                        class="px-4 py-1.5 bg-brand-600 text-white text-xs font-medium rounded-lg hover:bg-brand-700 transition whitespace-nowrap">
-                    Approve
+                        class="px-5 py-2 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700 transition whitespace-nowrap">
+                    Approve & Push to Graph
                 </button>
                 <button @click="resolveReview(item.review_id, 'dismiss')"
-                        class="px-4 py-1.5 bg-slate-100 text-slate-500 text-xs font-medium rounded-lg hover:bg-slate-200 transition">
+                        class="px-5 py-2 bg-slate-100 text-slate-500 text-sm font-medium rounded-lg hover:bg-slate-200 transition">
                     Dismiss
                 </button>
             </div>
@@ -249,7 +288,7 @@
 </div>
 
 <script>
-const { createApp, ref, onMounted } = Vue;
+const { createApp, ref, reactive, onMounted, watch } = Vue;
 const API = '/api/v1';
 
 createApp({
@@ -266,6 +305,63 @@ createApp({
         const stats = ref({ creators: 0, tags: 0, tag_edges: 0 });
         async function loadStats() {
             try { stats.value = await (await fetch(API+'/stats')).json(); } catch {}
+        }
+
+        // Taxonomy for tag picker
+        const taxonomy = ref([]);
+        async function loadTaxonomy() {
+            try { taxonomy.value = await (await fetch(API+'/taxonomy')).json(); } catch {}
+        }
+
+        // Tag edit states: { [review_id]: { currentTags: [...], originalTags: [...] } }
+        const editStates = reactive({});
+
+        function initEditState(reviewId, tags) {
+            if (!editStates[reviewId]) {
+                const tagsCopy = tags.map(t => ({...t}));
+                editStates[reviewId] = {
+                    currentTags: tagsCopy,
+                    originalTags: tags.map(t => ({...t})),
+                };
+            }
+        }
+
+        function getEditState(reviewId) {
+            return editStates[reviewId] || { currentTags: [], originalTags: [] };
+        }
+
+        function isTagActive(reviewId, tagName) {
+            const state = editStates[reviewId];
+            if (!state) return false;
+            return state.currentTags.some(t => t.tag === tagName);
+        }
+
+        function addTag(reviewId, tag) {
+            const state = editStates[reviewId];
+            if (!state) return;
+            if (!state.currentTags.some(t => t.tag === tag.tag)) {
+                state.currentTags.push({...tag});
+            }
+        }
+
+        function removeTag(reviewId, tag) {
+            const state = editStates[reviewId];
+            if (!state) return;
+            state.currentTags = state.currentTags.filter(t => t.tag !== tag.tag);
+        }
+
+        function hasTagChanges(reviewId) {
+            const state = editStates[reviewId];
+            if (!state) return false;
+            const orig = state.originalTags.map(t => t.tag).sort().join(',');
+            const curr = state.currentTags.map(t => t.tag).sort().join(',');
+            return orig !== curr;
+        }
+
+        // Tab switching
+        function switchTab(id) {
+            tab.value = id;
+            if (id === 'review') loadReview();
         }
 
         // ---- Add Creator ----
@@ -304,18 +400,39 @@ createApp({
                 const d = await (await fetch(`${API}/review?filter_type=${reviewFilter.value}`)).json();
                 reviewItems.value = d.items || [];
                 reviewCounts.value = d.counts || { total: 0, flagged: 0, passed: 0 };
+                // Initialize edit states for each item
+                for (const item of reviewItems.value) {
+                    // Reset edit state on reload
+                    delete editStates[item.review_id];
+                    initEditState(item.review_id, item.tags);
+                }
             } catch {}
             reviewLoading.value = false;
         }
 
         async function resolveReview(id, action) {
-            const el = document.getElementById('edit-'+id);
-            const tags = el ? el.value.trim() : '';
+            const state = editStates[id];
+            const changed = hasTagChanges(id);
             let url = `${API}/review/${id}?action=${action}&reviewed_by=${encodeURIComponent(addUser.value)}`;
-            if (tags) url += `&new_tags=${encodeURIComponent(tags)}`;
-            await fetch(url, {method:'POST'});
+            const opts = { method: 'POST' };
+
+            if (changed && state) {
+                // Send updated tags as JSON body via query param
+                const tagsJson = JSON.stringify(state.currentTags.map(t => ({
+                    tag: t.tag, level: t.level, confidence: t.confidence
+                })));
+                url += `&new_tags=${encodeURIComponent(tagsJson)}`;
+            }
+
+            await fetch(url, opts);
             const row = document.getElementById('rv-'+id);
-            if (row) { row.style.opacity='0'; row.style.transition='opacity .3s'; setTimeout(()=>{ reviewItems.value = reviewItems.value.filter(i=>i.review_id!==id); }, 300); }
+            if (row) {
+                row.style.opacity='0'; row.style.transition='opacity .3s';
+                setTimeout(()=>{
+                    reviewItems.value = reviewItems.value.filter(i=>i.review_id!==id);
+                    delete editStates[id];
+                }, 300);
+            }
             loadStats();
         }
 
@@ -345,16 +462,14 @@ createApp({
             } catch(e) { box.innerHTML=`<p style="text-align:center;padding-top:250px;color:#f87171">${e.message}</p>`; }
         }
 
-        onMounted(() => { loadStats(); });
-
-        // Auto-load review when switching to tab
-        const origTab = tab;
+        onMounted(() => { loadStats(); loadTaxonomy(); });
 
         return {
-            tab, tabs, stats,
+            tab, tabs, stats, taxonomy, switchTab,
             addQuery, addUser, previewData, previewing, tagResult, tagging,
             preview, tagCreator,
             reviewItems, reviewFilter, reviewLoading, reviewCounts, loadReview, resolveReview,
+            editStates, getEditState, isTagActive, addTag, removeTag, hasTagChanges,
             searchQuery, searchResults, search,
             graphLimit, loadGraph,
         };

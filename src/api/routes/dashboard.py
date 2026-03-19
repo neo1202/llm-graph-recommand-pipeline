@@ -144,7 +144,6 @@ def add_creator_by_query(
     query: str = Query(..., description="YouTube URL, channel name, or channel ID"),
     added_by: str = Query("user", description="Who is adding this creator"),
     db: Session = Depends(get_db),
-    neo4j: Neo4jClient = Depends(get_neo4j),
     tagger: LLMTagger = Depends(get_tagger),
     quality_gate: QualityGate = Depends(get_quality_gate),
 ):
@@ -176,13 +175,14 @@ def add_creator_by_query(
     tagging_result = tagger.tag_creator(creator_input)
     qa_report = quality_gate.validate(tagging_result)
 
-    # Step 5: Store in PostgreSQL
+    # Step 5: Store in PostgreSQL (staging only — Neo4j write deferred until approval)
     db_creator = Creator(
         channel_id=profile["channel_id"],
         name=profile["name"],
         description=profile["description"],
         subscriber_count=profile["subscriber_count"],
         region=profile["region"],
+        video_titles=json.dumps(profile["recent_video_titles"]),
         added_by=added_by,
     )
     db.add(db_creator)
@@ -195,15 +195,7 @@ def add_creator_by_query(
             tag_level=level, confidence=tag.confidence,
         ))
 
-    # Step 6: Store in Neo4j
-    upsert_creator(neo4j, profile["channel_id"], profile["name"],
-                   profile["region"], added_by=added_by)
-    clear_creator_tags(neo4j, profile["channel_id"])
-    for tag in qa_report.filtered_l1_tags + qa_report.filtered_l2_tags:
-        add_creator_tag(neo4j, profile["channel_id"], tag.tag,
-                        tag.confidence, tagger.prompt_version)
-
-    # Step 7: Always add to review queue
+    # Step 6: Always add to review queue
     has_issues = len(qa_report.issues) > 0
     db.add(ReviewQueue(
         creator_id=db_creator.id,
@@ -233,9 +225,8 @@ def get_review_queue(
     status: str = Query("pending", description="Filter by status"),
     filter_type: str = Query("all", description="all, flagged, or passed"),
     db: Session = Depends(get_db),
-    neo4j: Neo4jClient = Depends(get_neo4j),
 ):
-    """Get review queue with full creator info and tags."""
+    """Get review queue with full creator info and tags from PostgreSQL."""
     query = (
         db.query(ReviewQueue, Creator)
         .join(Creator, ReviewQueue.creator_id == Creator.id)
@@ -250,17 +241,16 @@ def get_review_queue(
 
     results = []
     for rq, c in items:
-        # Fetch tags from Neo4j
-        tags = neo4j.run_query(
-            """
-            MATCH (cr:Creator {channel_id: $cid})-[r:HAS_TAG]->(t:Tag)
-            RETURN t.name AS tag, t.level AS level, r.confidence AS confidence
-            ORDER BY t.level, r.confidence DESC
-            """,
-            {"cid": c.channel_id},
+        # Read tags from PostgreSQL (staging)
+        pg_tags = (
+            db.query(TaggingResult)
+            .filter_by(creator_id=c.id)
+            .order_by(TaggingResult.tag_level, TaggingResult.confidence.desc())
+            .all()
         )
 
         issues = json.loads(rq.details) if rq.details else []
+        video_titles = json.loads(c.video_titles) if c.video_titles else []
 
         results.append({
             "review_id": rq.id,
@@ -268,14 +258,15 @@ def get_review_queue(
             "creator": {
                 "channel_id": c.channel_id,
                 "name": c.name,
-                "description": (c.description or "")[:300],
+                "description": c.description or "",
                 "subscriber_count": c.subscriber_count,
                 "region": c.region,
                 "added_by": c.added_by or "system",
+                "video_titles": video_titles,
             },
             "tags": [
-                {"tag": t["tag"], "level": t["level"], "confidence": t["confidence"]}
-                for t in tags
+                {"tag": t.tag_name, "level": t.tag_level, "confidence": t.confidence}
+                for t in pg_tags
             ],
             "issues": issues if isinstance(issues, list) else [],
             "status": rq.status,
@@ -297,11 +288,11 @@ def resolve_review(
     review_id: int,
     action: str = Query(..., description="approve or dismiss"),
     reviewed_by: str = Query("user"),
-    new_tags: str = Query(None, description="Comma-separated tag names to replace current tags"),
+    new_tags: str = Query(None, description="JSON array of tag objects [{tag, level, confidence}]"),
     db: Session = Depends(get_db),
     neo4j: Neo4jClient = Depends(get_neo4j),
 ):
-    """Approve or dismiss a review item. Optionally override tags."""
+    """Approve or dismiss a review item. On approve, write to Neo4j."""
     item = db.query(ReviewQueue).filter_by(id=review_id).first()
     if not item:
         return {"error": "Review item not found"}
@@ -312,22 +303,27 @@ def resolve_review(
 
     creator = db.query(Creator).filter_by(id=item.creator_id).first()
 
-    # If new tags provided, update Neo4j and PostgreSQL
+    # If new tags provided, update PostgreSQL tagging results
     if new_tags:
-        tag_list = [t.strip() for t in new_tags.split(",") if t.strip()]
-        clear_creator_tags(neo4j, creator.channel_id)
-
-        # Delete old tagging results
+        tag_list = json.loads(new_tags)
         db.query(TaggingResult).filter_by(creator_id=creator.id).delete()
-
-        for tag_name in tag_list:
-            # Determine level from taxonomy
-            level = "L1" if tag_name in _get_l1_names(neo4j) else "L2"
-            add_creator_tag(neo4j, creator.channel_id, tag_name, 1.0, 6)
+        for t in tag_list:
             db.add(TaggingResult(
-                creator_id=creator.id, tag_name=tag_name,
-                tag_level=level, confidence=1.0,
+                creator_id=creator.id, tag_name=t["tag"],
+                tag_level=t["level"], confidence=t.get("confidence", 1.0),
             ))
+
+    # On approve: write creator + final tags to Neo4j (production graph)
+    if action == "approve":
+        final_tags = (
+            db.query(TaggingResult).filter_by(creator_id=creator.id).all()
+        )
+        upsert_creator(neo4j, creator.channel_id, creator.name,
+                       creator.region, added_by=creator.added_by or "system")
+        clear_creator_tags(neo4j, creator.channel_id)
+        for t in final_tags:
+            add_creator_tag(neo4j, creator.channel_id, t.tag_name,
+                            t.confidence, 6)
 
     db.add(AuditLog(
         creator_id=item.creator_id,
@@ -336,7 +332,7 @@ def resolve_review(
             "review_id": review_id,
             "action": action,
             "reviewed_by": reviewed_by,
-            "new_tags": new_tags,
+            "tags_modified": new_tags is not None,
         }),
     ))
     db.commit()
@@ -344,12 +340,16 @@ def resolve_review(
     return {"review_id": review_id, "status": item.status, "reviewed_by": reviewed_by}
 
 
-def _get_l1_names(neo4j: Neo4jClient) -> set:
-    """Cache-friendly helper to get L1 tag names."""
-    results = neo4j.run_query("MATCH (t:Tag {level: 'L1'}) RETURN t.name AS name")
-    return {r["name"] for r in results}
-
-    return {"review_id": review_id, "status": item.status, "reviewed_by": reviewed_by}
+@router.get("/taxonomy")
+def get_taxonomy(neo4j: Neo4jClient = Depends(get_neo4j)):
+    """Get full taxonomy tree for tag picker UI."""
+    rows = neo4j.run_query("""
+        MATCH (l1:Tag {level: 'L1'})
+        OPTIONAL MATCH (l2:Tag {level: 'L2'})-[:CHILD_OF]->(l1)
+        RETURN l1.name AS l1, collect(l2.name) AS children
+        ORDER BY l1.name
+    """)
+    return [{"l1": r["l1"], "children": [c for c in r["children"] if c]} for r in rows]
 
 
 @router.get("/graph/data")

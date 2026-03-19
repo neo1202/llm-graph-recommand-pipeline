@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
 
 from src.config import settings
@@ -10,6 +10,15 @@ SessionLocal = sessionmaker(bind=engine)
 
 def init_db():
     Base.metadata.create_all(bind=engine)
+    # Add video_titles column if missing (no Alembic in this project)
+    with engine.connect() as conn:
+        try:
+            conn.execute(text(
+                "ALTER TABLE creators ADD COLUMN IF NOT EXISTS video_titles TEXT DEFAULT '[]'"
+            ))
+            conn.commit()
+        except Exception:
+            conn.rollback()
 
 
 def get_session() -> Session:

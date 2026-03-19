@@ -1,6 +1,7 @@
 """
 Batch pipeline runner: processes creators end-to-end.
-Ingestion → LLM Tagging → Quality Gates → Storage (Neo4j + PostgreSQL)
+Ingestion → LLM Tagging → Quality Gates → Storage (PostgreSQL staging)
+Neo4j writes are deferred until review approval via the dashboard.
 """
 
 import json
@@ -10,8 +11,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from src.config import settings
-from src.graph.neo4j_client import Neo4jClient, get_neo4j_client
-from src.graph.queries import add_creator_tag, clear_creator_tags, upsert_creator
+from src.graph.neo4j_client import get_neo4j_client
 from src.graph.taxonomy_loader import get_taxonomy_tree, init_taxonomy_graph
 from src.quality.gate import QualityGate
 from src.storage.models import AuditLog, Creator, ReviewQueue, TaggingResult
@@ -154,6 +154,7 @@ def run_pipeline(
                         description=creator_input.description,
                         subscriber_count=creator_input.subscriber_count,
                         region=creator_input.region,
+                        video_titles=json.dumps(creator_input.recent_video_titles),
                     )
                     session.add(db_creator)
                     session.flush()
@@ -168,16 +169,7 @@ def run_pipeline(
                         confidence=tag.confidence,
                     ))
 
-                # Step 4: Store in Neo4j
-                upsert_creator(neo4j, creator_input.channel_id, creator_input.name, creator_input.region)
-                clear_creator_tags(neo4j, creator_input.channel_id)
-                for tag in qa_report.filtered_l1_tags + qa_report.filtered_l2_tags:
-                    add_creator_tag(
-                        neo4j, creator_input.channel_id, tag.tag,
-                        tag.confidence, tagging_result.prompt_version,
-                    )
-
-                # Step 5: Every creator enters review queue
+                # Step 4: Every creator enters review queue (Neo4j write deferred until approval)
                 has_issues = len(qa_report.issues) > 0
                 if has_issues:
                     stats.flagged += 1

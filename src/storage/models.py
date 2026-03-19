@@ -26,6 +26,7 @@ class Creator(Base):
     description = Column(Text, default="")
     subscriber_count = Column(Integer, default=0)
     region = Column(String(16), default="Global")
+    video_titles = Column(Text, default="[]")  # JSON array of recent video titles
     added_by = Column(String(128), default="system")
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
