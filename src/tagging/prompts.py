@@ -27,8 +27,8 @@ Return a JSON object with this exact structure:
 
 Rules:
 - Only use category names from the provided list
-- Assign 1-3 categories maximum
-- Confidence should reflect how certain you are (0.7+ means confident)
+- Assign 1-2 categories maximum
+- Confidence should reflect how certain you are (0.7+ means quite confident, 0.8+ means really sure)
 - Consider ALL video titles collectively, not just one
 - If the channel description is vague, rely more on video titles"""
 

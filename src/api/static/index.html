@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KOL Radar - Creator Knowledge Graph</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+    <script>tailwind.config={theme:{extend:{colors:{brand:{50:'#eef2ff',100:'#e0e7ff',200:'#c7d2fe',500:'#6366f1',600:'#4f46e5',700:'#4338ca',800:'#3730a3',900:'#312e81',950:'#1e1b4b'}}}}}</script>
+    <style>
+        [v-cloak] { display: none; }
+        #graph-box { width: 100%; height: 560px; }
+        .fade-enter-active { animation: fadeUp .25s ease-out; }
+        @keyframes fadeUp { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
+        .tag-pill { @apply inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium cursor-default; }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen text-slate-800">
+<div id="app" v-cloak>
+
+<!-- Header -->
+<header class="bg-brand-950 text-white">
+    <div class="max-w-7xl mx-auto px-6 py-3.5 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+            <div class="size-8 rounded-lg bg-brand-600 flex items-center justify-center text-xs font-bold tracking-tight">KG</div>
+            <div><h1 class="text-[15px] font-semibold tracking-tight">KOL Radar · Knowledge Graph</h1>
+            <p class="text-[11px] text-brand-200/60">Creator Tagging & Search Platform</p></div>
+        </div>
+        <div class="text-xs text-brand-200/70">{{ stats.creators }} creators · {{ stats.tags }} tags · {{ stats.tag_edges }} connections</div>
+    </div>
+</header>
+
+<!-- Tabs -->
+<nav class="bg-brand-900 border-b border-brand-800/50">
+    <div class="max-w-7xl mx-auto px-6 flex">
+        <button v-for="t in tabs" :key="t.id" @click="tab=t.id"
+                :class="['px-5 py-2.5 text-[13px] font-medium transition-all rounded-t-lg -mb-px',
+                         tab===t.id ? 'bg-slate-50 text-brand-700' : 'text-brand-200/60 hover:text-white']">
+            {{ t.label }}
+        </button>
+    </div>
+</nav>
+
+<main class="max-w-7xl mx-auto px-6 py-6">
+
+<!-- ==================== ADD CREATOR ==================== -->
+<section v-show="tab==='add'">
+    <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5 mb-5">
+        <h2 class="text-sm font-semibold text-slate-700 mb-3">Add Creator</h2>
+        <div class="flex gap-2.5">
+            <input v-model="addQuery" @keyup.enter="preview" placeholder="YouTube channel name, @handle, or URL..."
+                   class="flex-1 px-3.5 py-2 border border-slate-200 rounded-lg text-sm placeholder:text-slate-300 focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400 outline-none transition">
+            <input v-model="addUser" placeholder="Your name"
+                   class="w-28 px-3.5 py-2 border border-slate-200 rounded-lg text-sm placeholder:text-slate-300 outline-none">
+            <button @click="preview" :disabled="previewing"
+                    class="px-4 py-2 bg-slate-800 text-white text-sm font-medium rounded-lg hover:bg-slate-900 disabled:opacity-40 transition">
+                {{ previewing ? 'Searching...' : 'Preview' }}
+            </button>
+        </div>
+    </div>
+
+    <!-- Preview card -->
+    <transition name="fade">
+    <div v-if="previewData" class="bg-white rounded-xl border border-slate-200 shadow-sm p-5 mb-5">
+        <div class="flex gap-5">
+            <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 mb-1.5">
+                    <h3 class="text-base font-semibold">{{ previewData.name }}</h3>
+                    <span class="text-[11px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">{{ (previewData.subscriber_count||0).toLocaleString() }} subs</span>
+                    <span class="text-[11px] bg-blue-50 text-blue-500 px-2 py-0.5 rounded-full">{{ previewData.region || 'TW' }}</span>
+                </div>
+                <p class="text-xs text-slate-400 mb-3 line-clamp-2">{{ (previewData.description||'').slice(0,250) }}</p>
+                <p class="text-[11px] font-medium text-slate-400 uppercase tracking-wider mb-1.5">Recent Videos</p>
+                <ul class="space-y-0.5 mb-3">
+                    <li v-for="v in (previewData.recent_video_titles||[]).slice(0,5)" class="text-sm text-slate-600 truncate">· {{ v }}</li>
+                </ul>
+                <p class="text-[11px] text-slate-300 font-mono">{{ previewData.channel_id }}</p>
+            </div>
+            <div class="flex flex-col gap-2 pt-1">
+                <button @click="tagCreator" :disabled="tagging"
+                        class="px-5 py-2.5 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700 disabled:opacity-40 transition whitespace-nowrap">
+                    {{ tagging ? 'Tagging...' : 'Run Pipeline' }}
+                </button>
+                <button @click="previewData=null" class="px-5 py-2.5 bg-slate-100 text-slate-500 text-sm rounded-lg hover:bg-slate-200 transition">Cancel</button>
+            </div>
+        </div>
+    </div>
+    </transition>
+
+    <!-- Tag result -->
+    <transition name="fade">
+    <div v-if="tagResult" :class="['rounded-xl border p-5', tagResult.error ? 'bg-red-50 border-red-200' : 'bg-emerald-50 border-emerald-200']">
+        <p v-if="tagResult.error" class="text-sm text-red-600">{{ tagResult.error }}</p>
+        <template v-else>
+            <div class="flex items-center gap-2 mb-3">
+                <span class="size-2 rounded-full bg-emerald-500"></span>
+                <span class="text-sm font-medium text-emerald-700">Tagged: {{ tagResult.name }}</span>
+                <span class="text-xs text-slate-400">by {{ tagResult.added_by }}</span>
+            </div>
+            <div class="flex flex-wrap gap-1.5 mb-2">
+                <span v-for="t in tagResult.l1_tags" class="tag-pill bg-red-100 text-red-700">{{ t.tag }} <span class="text-red-400">{{ t.confidence.toFixed(2) }}</span></span>
+                <span v-for="t in tagResult.l2_tags" class="tag-pill bg-blue-100 text-blue-700">{{ t.tag }} <span class="text-blue-400">{{ t.confidence.toFixed(2) }}</span></span>
+            </div>
+            <div v-if="tagResult.issues?.length" class="pt-2 border-t border-emerald-200/50">
+                <span v-for="i in tagResult.issues" class="tag-pill bg-amber-100 text-amber-700 mr-1">{{ i.type }}: {{ i.reason }}</span>
+            </div>
+        </template>
+    </div>
+    </transition>
+</section>
+
+<!-- ==================== REVIEW QUEUE ==================== -->
+<section v-show="tab==='review'">
+    <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center gap-3">
+            <h2 class="text-sm font-semibold text-slate-700">Review Queue</h2>
+            <div class="flex bg-slate-100 rounded-lg p-0.5 text-xs">
+                <button @click="reviewFilter='all'; loadReview()"
+                        :class="['px-3 py-1 rounded-md transition', reviewFilter==='all' ? 'bg-white shadow-sm text-slate-800 font-medium' : 'text-slate-500']">
+                    All ({{ reviewCounts.total }})
+                </button>
+                <button @click="reviewFilter='flagged'; loadReview()"
+                        :class="['px-3 py-1 rounded-md transition', reviewFilter==='flagged' ? 'bg-white shadow-sm text-red-600 font-medium' : 'text-slate-500']">
+                    Needs Review ({{ reviewCounts.flagged }})
+                </button>
+                <button @click="reviewFilter='passed'; loadReview()"
+                        :class="['px-3 py-1 rounded-md transition', reviewFilter==='passed' ? 'bg-white shadow-sm text-emerald-600 font-medium' : 'text-slate-500']">
+                    Auto-Pass ({{ reviewCounts.passed }})
+                </button>
+            </div>
+        </div>
+        <button @click="loadReview" class="text-xs text-brand-600 hover:text-brand-800">Refresh</button>
+    </div>
+
+    <div v-if="reviewLoading" class="text-center py-16 text-sm text-slate-300">Loading...</div>
+    <div v-else-if="!reviewItems.length" class="text-center py-16 text-sm text-slate-300">No items</div>
+
+    <div v-for="item in reviewItems" :key="item.review_id" :id="'rv-'+item.review_id"
+         :class="['bg-white rounded-xl border shadow-sm mb-3 overflow-hidden transition-all',
+                  item.has_issues ? 'border-red-200' : 'border-emerald-200']">
+        <!-- Status bar -->
+        <div :class="['px-5 py-1.5 text-[11px] font-medium uppercase tracking-wider flex items-center justify-between',
+                      item.has_issues ? 'bg-red-50 text-red-500' : 'bg-emerald-50 text-emerald-500']">
+            <span>{{ item.has_issues ? 'Needs Review — Low Confidence Tags' : 'Auto Pass — All Tags Above Threshold' }}</span>
+            <span class="text-slate-400 normal-case">{{ item.creator.added_by }}</span>
+        </div>
+
+        <div class="p-5">
+            <!-- Creator info -->
+            <div class="flex items-start gap-4 mb-4">
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2 mb-1">
+                        <h3 class="font-semibold text-[15px]">{{ item.creator.name }}</h3>
+                        <span class="text-[11px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">{{ (item.creator.subscriber_count||0).toLocaleString() }} subs</span>
+                        <span class="text-[11px] bg-blue-50 text-blue-500 px-2 py-0.5 rounded-full">{{ item.creator.region }}</span>
+                    </div>
+                    <p class="text-xs text-slate-400 line-clamp-2">{{ item.creator.description }}</p>
+                </div>
+            </div>
+
+            <!-- Current tags -->
+            <div class="mb-4">
+                <p class="text-[11px] font-medium text-slate-400 uppercase tracking-wider mb-2">Current Tags</p>
+                <div class="flex flex-wrap gap-1.5">
+                    <span v-for="t in item.tags"
+                          :class="['tag-pill', t.level==='L1' ? 'bg-red-50 text-red-600' : 'bg-blue-50 text-blue-600',
+                                   t.confidence < 0.7 ? 'ring-2 ring-amber-300' : '']">
+                        {{ t.tag }}
+                        <span :class="t.confidence < 0.7 ? 'text-amber-500 font-semibold' : 'opacity-50'">{{ t.confidence.toFixed(2) }}</span>
+                    </span>
+                </div>
+            </div>
+
+            <!-- Issues -->
+            <div v-if="item.issues?.length" class="mb-4">
+                <p class="text-[11px] font-medium text-amber-500 uppercase tracking-wider mb-1.5">Issues</p>
+                <div class="flex flex-wrap gap-1">
+                    <span v-for="iss in item.issues" class="tag-pill bg-amber-50 text-amber-600">{{ iss.type || iss }}: {{ iss.reason || '' }}</span>
+                </div>
+            </div>
+
+            <!-- Edit & Actions -->
+            <div class="flex items-end gap-3 pt-3 border-t border-slate-100">
+                <div class="flex-1">
+                    <label class="text-[11px] text-slate-400 mb-1 block">Edit tags (comma-separated, leave empty to keep current)</label>
+                    <input :id="'edit-'+item.review_id" type="text"
+                           :placeholder="item.tags.map(t=>t.tag).join(', ')"
+                           class="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-sm placeholder:text-slate-300 outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400 transition">
+                </div>
+                <button @click="resolveReview(item.review_id, 'approve')"
+                        class="px-4 py-1.5 bg-brand-600 text-white text-xs font-medium rounded-lg hover:bg-brand-700 transition whitespace-nowrap">
+                    Approve
+                </button>
+                <button @click="resolveReview(item.review_id, 'dismiss')"
+                        class="px-4 py-1.5 bg-slate-100 text-slate-500 text-xs font-medium rounded-lg hover:bg-slate-200 transition">
+                    Dismiss
+                </button>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ==================== SEARCH ==================== -->
+<section v-show="tab==='search'">
+    <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-5 mb-5">
+        <h2 class="text-sm font-semibold text-slate-700 mb-3">Search Creators by Tags</h2>
+        <div class="flex gap-2.5">
+            <input v-model="searchQuery" @keyup.enter="search" placeholder="e.g. Gaming, Cooking_Tutorial, Travel"
+                   class="flex-1 px-3.5 py-2 border border-slate-200 rounded-lg text-sm placeholder:text-slate-300 focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400 outline-none transition">
+            <button @click="search" class="px-5 py-2 bg-brand-600 text-white text-sm font-medium rounded-lg hover:bg-brand-700 transition">Search</button>
+        </div>
+    </div>
+    <p v-if="searchResults" class="text-xs text-slate-400 mb-3">{{ searchResults.total_results }} results for: {{ searchResults.query_tags.join(', ') }}</p>
+    <div v-for="r in (searchResults?.results||[])" class="bg-white rounded-xl border border-slate-200 shadow-sm p-4 mb-2 flex items-center justify-between">
+        <div>
+            <span class="font-medium text-sm">{{ r.name }}</span>
+            <span :class="['ml-2 text-[11px] px-2 py-0.5 rounded-full', r.match_type==='exact' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600']">{{ r.match_type }}</span>
+            <p class="text-xs text-slate-400 mt-1">{{ r.region }} · {{ (r.matched_tags||[]).join(', ') }}</p>
+        </div>
+        <span class="text-sm font-mono text-slate-400">{{ (r.avg_conf||0).toFixed(2) }}</span>
+    </div>
+</section>
+
+<!-- ==================== GRAPH VIEW ==================== -->
+<section v-show="tab==='graph'">
+    <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center gap-5">
+            <h2 class="text-sm font-semibold text-slate-700">Knowledge Graph</h2>
+            <div class="flex gap-3.5 text-[11px] text-slate-400">
+                <span class="flex items-center gap-1"><span class="size-2.5 bg-red-500 rounded-sm"></span> L1</span>
+                <span class="flex items-center gap-1"><span class="size-2.5 bg-blue-500 rounded-full"></span> L2</span>
+                <span class="flex items-center gap-1"><span class="size-2.5 bg-emerald-500 rounded-sm"></span> Creator</span>
+            </div>
+        </div>
+        <div class="flex gap-2">
+            <select v-model="graphLimit" class="text-xs border border-slate-200 rounded-lg px-3 py-1.5 outline-none">
+                <option value="20">20 creators</option>
+                <option value="50">50 creators</option>
+                <option value="108">All</option>
+            </select>
+            <button @click="loadGraph" class="px-4 py-1.5 bg-brand-600 text-white text-xs font-medium rounded-lg hover:bg-brand-700 transition">Load</button>
+        </div>
+    </div>
+    <div id="graph-box" class="bg-white rounded-xl border border-slate-200 shadow-sm"></div>
+</section>
+
+</main>
+</div>
+
+<script>
+const { createApp, ref, onMounted } = Vue;
+const API = '/api/v1';
+
+createApp({
+    setup() {
+        const tab = ref('add');
+        const tabs = [
+            { id: 'add', label: '+ Add Creator' },
+            { id: 'review', label: 'Review Queue' },
+            { id: 'search', label: 'Search' },
+            { id: 'graph', label: 'Graph View' },
+        ];
+
+        // Stats
+        const stats = ref({ creators: 0, tags: 0, tag_edges: 0 });
+        async function loadStats() {
+            try { stats.value = await (await fetch(API+'/stats')).json(); } catch {}
+        }
+
+        // ---- Add Creator ----
+        const addQuery = ref(''); const addUser = ref('user');
+        const previewData = ref(null); const previewing = ref(false);
+        const tagResult = ref(null); const tagging = ref(false);
+
+        async function preview() {
+            if (!addQuery.value.trim()) return;
+            previewing.value = true; previewData.value = null; tagResult.value = null;
+            try {
+                const d = await (await fetch(`${API}/creators/preview?query=${encodeURIComponent(addQuery.value)}`)).json();
+                if (d.error) { alert(d.error); } else { previewData.value = d; }
+            } catch(e) { alert(e.message); }
+            previewing.value = false;
+        }
+
+        async function tagCreator() {
+            if (!previewData.value) return;
+            tagging.value = true;
+            try {
+                const d = await (await fetch(`${API}/creators/add?query=${encodeURIComponent(previewData.value.channel_id)}&added_by=${encodeURIComponent(addUser.value)}`, {method:'POST'})).json();
+                tagResult.value = d; previewData.value = null; loadStats();
+            } catch(e) { tagResult.value = {error: e.message}; }
+            tagging.value = false;
+        }
+
+        // ---- Review ----
+        const reviewItems = ref([]); const reviewFilter = ref('all');
+        const reviewLoading = ref(false);
+        const reviewCounts = ref({ total: 0, flagged: 0, passed: 0 });
+
+        async function loadReview() {
+            reviewLoading.value = true;
+            try {
+                const d = await (await fetch(`${API}/review?filter_type=${reviewFilter.value}`)).json();
+                reviewItems.value = d.items || [];
+                reviewCounts.value = d.counts || { total: 0, flagged: 0, passed: 0 };
+            } catch {}
+            reviewLoading.value = false;
+        }
+
+        async function resolveReview(id, action) {
+            const el = document.getElementById('edit-'+id);
+            const tags = el ? el.value.trim() : '';
+            let url = `${API}/review/${id}?action=${action}&reviewed_by=${encodeURIComponent(addUser.value)}`;
+            if (tags) url += `&new_tags=${encodeURIComponent(tags)}`;
+            await fetch(url, {method:'POST'});
+            const row = document.getElementById('rv-'+id);
+            if (row) { row.style.opacity='0'; row.style.transition='opacity .3s'; setTimeout(()=>{ reviewItems.value = reviewItems.value.filter(i=>i.review_id!==id); }, 300); }
+            loadStats();
+        }
+
+        // ---- Search ----
+        const searchQuery = ref(''); const searchResults = ref(null);
+        async function search() {
+            if (!searchQuery.value.trim()) return;
+            searchResults.value = await (await fetch(`${API}/search?tags=${encodeURIComponent(searchQuery.value)}`)).json();
+        }
+
+        // ---- Graph ----
+        const graphLimit = ref('50');
+        async function loadGraph() {
+            const box = document.getElementById('graph-box');
+            box.innerHTML = '<p style="text-align:center;padding-top:250px;color:#cbd5e1;font-size:13px">Loading graph...</p>';
+            try {
+                const d = await (await fetch(`${API}/graph/data?limit=${graphLimit.value}`)).json();
+                box.innerHTML = '';
+                new vis.Network(box, {
+                    nodes: new vis.DataSet(d.nodes), edges: new vis.DataSet(d.edges),
+                }, {
+                    physics: { stabilization:{iterations:150}, barnesHut:{gravitationalConstant:-4000,springLength:180,damping:.12} },
+                    interaction: { hover:true, tooltipDelay:100, navigationButtons:true, keyboard:true },
+                    nodes: { font:{size:11, face:'system-ui'} },
+                    edges: { font:{size:8, align:'middle', color:'#aaa'}, arrows:{to:{enabled:true,scaleFactor:.4}}, smooth:{type:'continuous'} },
+                });
+            } catch(e) { box.innerHTML=`<p style="text-align:center;padding-top:250px;color:#f87171">${e.message}</p>`; }
+        }
+
+        onMounted(() => { loadStats(); });
+
+        // Auto-load review when switching to tab
+        const origTab = tab;
+
+        return {
+            tab, tabs, stats,
+            addQuery, addUser, previewData, previewing, tagResult, tagging,
+            preview, tagCreator,
+            reviewItems, reviewFilter, reviewLoading, reviewCounts, loadReview, resolveReview,
+            searchQuery, searchResults, search,
+            graphLimit, loadGraph,
+        };
+    }
+}).mount('#app');
+</script>
+</body>
+</html>

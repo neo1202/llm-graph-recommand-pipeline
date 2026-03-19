@@ -1,8 +1,11 @@
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
-from src.api.routes import health, search, tagging
+from src.api.routes import dashboard, health, search, tagging
 from src.graph.neo4j_client import get_neo4j_client
 from src.graph.taxonomy_loader import init_taxonomy_graph
 from src.config import settings
@@ -31,3 +34,13 @@ app = FastAPI(
 app.include_router(health.router)
 app.include_router(search.router)
 app.include_router(tagging.router)
+app.include_router(dashboard.router)
+
+# Serve static files (dashboard UI)
+static_dir = Path(__file__).parent / "static"
+app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+
+
+@app.get("/")
+async def serve_dashboard():
+    return FileResponse(str(static_dir / "index.html"))
