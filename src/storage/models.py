@@ -26,6 +26,7 @@ class Creator(Base):
     description = Column(Text, default="")
     subscriber_count = Column(Integer, default=0)
     region = Column(String(16), default="Global")
+    added_by = Column(String(128), default="system")
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
@@ -41,8 +42,6 @@ class TaggingResult(Base):
     tag_name = Column(String(128), nullable=False)
     tag_level = Column(String(4), nullable=False)  # L1, L2, L3
     confidence = Column(Float, nullable=False)
-    llm_model = Column(String(64), default="gpt-4o-mini")
-    prompt_version = Column(Integer, default=1)
     created_at = Column(DateTime, server_default=func.now())
 
     creator = relationship("Creator", back_populates="tagging_results")
@@ -67,6 +66,7 @@ class ReviewQueue(Base):
     details = Column(Text, default="")
     status = Column(String(16), default="pending")  # pending, reviewed, dismissed
     created_at = Column(DateTime, server_default=func.now())
+    reviewed_by = Column(String(128), nullable=True)
     reviewed_at = Column(DateTime, nullable=True)
 
     creator = relationship("Creator", back_populates="review_items")

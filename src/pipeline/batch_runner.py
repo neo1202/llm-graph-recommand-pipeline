@@ -126,6 +126,16 @@ def run_pipeline(
             )
 
             try:
+                # Skip if already processed
+                existing = session.query(Creator).filter_by(
+                    channel_id=creator_input.channel_id
+                ).first()
+                if existing:
+                    stats.processed += 1
+                    stats.passed += 1
+                    logger.info(f"Skipping {creator_input.name} (already exists)")
+                    continue
+
                 # Step 1: LLM Tagging (2-stage)
                 tagging_result = tagger.tag_creator(creator_input)
 
@@ -156,8 +166,6 @@ def run_pipeline(
                         tag_name=tag.tag,
                         tag_level=level,
                         confidence=tag.confidence,
-                        llm_model=tagging_result.model,
-                        prompt_version=tagging_result.prompt_version,
                     ))
 
                 # Step 4: Store in Neo4j
@@ -169,22 +177,18 @@ def run_pipeline(
                         tag.confidence, tagging_result.prompt_version,
                     )
 
-                # Step 5: Handle flagged items
-                if qa_report.issues:
+                # Step 5: Every creator enters review queue
+                has_issues = len(qa_report.issues) > 0
+                if has_issues:
                     stats.flagged += 1
-                    for issue in qa_report.issues:
-                        session.add(ReviewQueue(
-                            creator_id=db_creator.id,
-                            reason=issue["type"],
-                            details=json.dumps(issue),
-                        ))
-                    session.add(AuditLog(
-                        creator_id=db_creator.id,
-                        action="flagged",
-                        details=json.dumps(qa_report.issues),
-                    ))
                 else:
                     stats.passed += 1
+
+                session.add(ReviewQueue(
+                    creator_id=db_creator.id,
+                    reason="flagged" if has_issues else "auto_pass",
+                    details=json.dumps(qa_report.issues) if has_issues else "[]",
+                ))
 
                 session.add(AuditLog(
                     creator_id=db_creator.id,

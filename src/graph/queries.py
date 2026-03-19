@@ -1,14 +1,15 @@
 from src.graph.neo4j_client import Neo4jClient
 
 
-def upsert_creator(client: Neo4jClient, channel_id: str, name: str, region: str = "Global"):
+def upsert_creator(client: Neo4jClient, channel_id: str, name: str,
+                   region: str = "Global", added_by: str = "system"):
     """Create or update a Creator node in Neo4j."""
     client.write_query(
         """
         MERGE (c:Creator {channel_id: $channel_id})
-        SET c.name = $name, c.region = $region
+        SET c.name = $name, c.region = $region, c.added_by = $added_by
         """,
-        {"channel_id": channel_id, "name": name, "region": region},
+        {"channel_id": channel_id, "name": name, "region": region, "added_by": added_by},
     )
 
 

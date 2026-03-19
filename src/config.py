@@ -11,6 +11,8 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql://ikala:password@localhost:5432/ikala"
 
+    youtube_api_key: str = ""
+
     taxonomy_path: str = "config/taxonomy.yaml"
     few_shot_path: str = "data/few_shot_examples.json"
 

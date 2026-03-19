@@ -50,8 +50,6 @@ def tag_creator(
             tag_name=tag.tag,
             tag_level=level,
             confidence=tag.confidence,
-            llm_model=tagging_result.model,
-            prompt_version=tagging_result.prompt_version,
         ))
 
     # Step 4: Store in Neo4j
