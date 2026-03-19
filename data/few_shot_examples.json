@@ -1,0 +1,96 @@
+[
+  {
+    "creator_name": "MKBHD",
+    "channel_description": "Quality Tech Videos | MKBHD. Tech reviews, unboxings, and the best tech content on YouTube.",
+    "recent_video_titles": [
+      "iPhone 16 Pro Review: The Best Gets Better!",
+      "The BEST Smartphones of 2024!",
+      "Galaxy S24 Ultra vs iPhone 15 Pro Max",
+      "I Tried Every Foldable Phone...",
+      "The Truth About Electric Cars in 2024"
+    ],
+    "expected_tags": {
+      "L1": [{"tag": "Technology", "confidence": 0.98}],
+      "L2": [
+        {"tag": "Smartphones", "confidence": 0.95},
+        {"tag": "Gadgets", "confidence": 0.85},
+        {"tag": "Unboxing", "confidence": 0.80}
+      ]
+    }
+  },
+  {
+    "creator_name": "Cooking with Dog",
+    "channel_description": "Japanese home cooking recipes presented by a small poodle named Francis and a Japanese chef.",
+    "recent_video_titles": [
+      "How to Make Perfect Japanese Curry Rice",
+      "Fluffy Japanese Pancakes Recipe",
+      "Easy Onigiri Rice Balls 3 Ways",
+      "Japanese Christmas Cake - Strawberry Shortcake",
+      "Homemade Ramen from Scratch"
+    ],
+    "expected_tags": {
+      "L1": [{"tag": "Food", "confidence": 0.97}],
+      "L2": [
+        {"tag": "Cooking_Tutorial", "confidence": 0.95},
+        {"tag": "Asian_Cuisine", "confidence": 0.92}
+      ]
+    }
+  },
+  {
+    "creator_name": "Graham Stephan",
+    "channel_description": "Real estate agent, investor, and YouTuber sharing tips on personal finance, investing, and real estate.",
+    "recent_video_titles": [
+      "How I Built a $10M Real Estate Portfolio by 30",
+      "The TRUTH About Index Fund Investing",
+      "Why The Housing Market is About to Change",
+      "How To Save $10,000 in 6 Months",
+      "My Monthly Budget Breakdown (Earning $5M/Year)"
+    ],
+    "expected_tags": {
+      "L1": [{"tag": "Finance", "confidence": 0.96}],
+      "L2": [
+        {"tag": "Personal_Finance", "confidence": 0.90},
+        {"tag": "Real_Estate", "confidence": 0.92},
+        {"tag": "Stock_Market", "confidence": 0.75}
+      ]
+    }
+  },
+  {
+    "creator_name": "Emma Chamberlain",
+    "channel_description": "just a girl who makes videos",
+    "recent_video_titles": [
+      "a productive day in my life in LA",
+      "what I eat in a week (realistic)",
+      "moving into my new apartment!!",
+      "my morning routine 2024",
+      "thrifting my entire wardrobe"
+    ],
+    "expected_tags": {
+      "L1": [
+        {"tag": "Lifestyle", "confidence": 0.93},
+        {"tag": "Beauty_Fashion", "confidence": 0.72}
+      ],
+      "L2": [
+        {"tag": "Daily_Vlog", "confidence": 0.92},
+        {"tag": "Fashion", "confidence": 0.70}
+      ]
+    }
+  },
+  {
+    "creator_name": "Kurzgesagt",
+    "channel_description": "Videos explaining things with optimistic nihilism since 12,013. We make science videos.",
+    "recent_video_titles": [
+      "What If Earth Got Hit by a Giant Solar Storm?",
+      "The Most Satisfying satisfying Video About the Universe",
+      "You Are Not Where You Think You Are",
+      "Why Blue Whales Don't Get Cancer",
+      "The Egg - A Short Story"
+    ],
+    "expected_tags": {
+      "L1": [{"tag": "Education", "confidence": 0.96}],
+      "L2": [
+        {"tag": "Science", "confidence": 0.95}
+      ]
+    }
+  }
+]

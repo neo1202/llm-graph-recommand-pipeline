@@ -1,0 +1,115 @@
+# iKala Creator Taxonomy v6
+# Hierarchical tag system: L1 (broad) → L2 (specific) → L3 (niche, open-ended)
+# Designed for YouTube/KOL influencer classification
+# Updated based on marketing team feedback over 6 iterations
+
+version: 6
+description: "Hierarchical creator taxonomy for KOL Radar platform"
+
+categories:
+  Technology:
+    description: "Tech reviews, software, hardware, and digital innovation"
+    children:
+      Smartphones: { description: "Phone reviews, comparisons, unboxing" }
+      PC_Hardware: { description: "Computer builds, components, peripherals" }
+      Software_Apps: { description: "App reviews, tutorials, SaaS" }
+      AI_ML: { description: "Artificial intelligence, machine learning content" }
+      Gadgets: { description: "Consumer electronics, smart home, wearables" }
+      Unboxing: { description: "Product unboxing and first impressions" }
+
+  Entertainment:
+    description: "Gaming, movies, music, and general entertainment"
+    children:
+      Gaming: { description: "Video game content, esports, game reviews" }
+      Movies_TV: { description: "Film reviews, TV show discussions, trailers" }
+      Music: { description: "Music creation, covers, reviews, concerts" }
+      Comedy: { description: "Sketches, stand-up, funny compilations" }
+      Animation: { description: "Animated content, anime reviews, cartoons" }
+      ASMR: { description: "ASMR content, relaxation, sensory triggers" }
+
+  Lifestyle:
+    description: "Daily life, vlogs, travel, and personal development"
+    children:
+      Daily_Vlog: { description: "Daily life documentation, personal vlogs" }
+      Travel: { description: "Travel vlogs, destination guides, adventures" }
+      Camping_Outdoor: { description: "Camping, hiking, van life, outdoor activities" }
+      Home_Decor: { description: "Interior design, home improvement, organization" }
+      Pets: { description: "Pet care, animal content, pet training" }
+      Minimalism: { description: "Minimalist living, decluttering, simple life" }
+
+  Food:
+    description: "Cooking, restaurant reviews, and food culture"
+    children:
+      Cooking_Tutorial: { description: "Recipe tutorials, cooking techniques" }
+      Restaurant_Review: { description: "Dining reviews, food tours" }
+      Asian_Cuisine: { description: "Japanese, Korean, Chinese, Thai, Vietnamese food" }
+      Western_Cuisine: { description: "European, American, Mediterranean food" }
+      Baking_Desserts: { description: "Baking, pastry, dessert making" }
+      Mukbang: { description: "Eating shows, food challenges" }
+      Healthy_Eating: { description: "Nutrition, meal prep, diet content" }
+
+  Education:
+    description: "Educational content, tutorials, and knowledge sharing"
+    children:
+      Science: { description: "Science explainers, experiments, discoveries" }
+      History: { description: "Historical content, documentaries" }
+      Language_Learning: { description: "Language tutorials, multilingual content" }
+      Programming: { description: "Coding tutorials, software development" }
+      Study_Tips: { description: "Study methods, exam prep, academic content" }
+      Career_Advice: { description: "Job hunting, interview tips, career growth" }
+
+  Finance:
+    description: "Financial content, investing, and business"
+    children:
+      Personal_Finance: { description: "Budgeting, saving, financial planning" }
+      Stock_Market: { description: "Stock trading, market analysis" }
+      Cryptocurrency: { description: "Crypto trading, blockchain, DeFi" }
+      Real_Estate: { description: "Property investment, housing market" }
+      Entrepreneurship: { description: "Business building, startups, side hustles" }
+
+  Beauty_Fashion:
+    description: "Beauty tutorials, fashion, and personal styling"
+    children:
+      Makeup: { description: "Makeup tutorials, product reviews, looks" }
+      Skincare: { description: "Skincare routines, product reviews, dermatology" }
+      Fashion: { description: "Outfit styling, fashion trends, hauls" }
+      Hair: { description: "Hairstyling, hair care, hair transformations" }
+      Nail_Art: { description: "Nail design, manicure tutorials" }
+
+  Sports_Fitness:
+    description: "Sports coverage, fitness, and health content"
+    children:
+      Gym_Workout: { description: "Gym routines, bodybuilding, strength training" }
+      Basketball: { description: "Basketball highlights, training, NBA" }
+      Soccer: { description: "Football/soccer content, match analysis" }
+      Yoga_Meditation: { description: "Yoga practice, meditation, mindfulness" }
+      Running: { description: "Marathon training, running tips, race vlogs" }
+      Weight_Loss: { description: "Weight loss journeys, transformation, diet" }
+
+  Kids_Family:
+    description: "Family-friendly content, parenting, and children's entertainment"
+    children:
+      Kids_Entertainment: { description: "Children's shows, toy reviews, cartoons" }
+      Parenting: { description: "Parenting tips, family vlogs, pregnancy" }
+      DIY_Crafts: { description: "Arts and crafts, DIY projects for families" }
+      Educational_Kids: { description: "Learning content for children" }
+
+# Conflict rules: tags that cannot coexist on the same creator
+conflict_rules:
+  - ["Kids_Entertainment", "Cryptocurrency"]
+  - ["Kids_Entertainment", "Stock_Market"]
+  - ["Kids_Entertainment", "Mukbang"]
+  - ["Educational_Kids", "Cryptocurrency"]
+  - ["Educational_Kids", "Stock_Market"]
+  - ["Healthy_Eating", "Mukbang"]
+
+# Region tags (orthogonal dimension)
+regions:
+  - TW    # Taiwan
+  - JP    # Japan
+  - KR    # Korea
+  - US    # United States
+  - HK    # Hong Kong
+  - SEA   # Southeast Asia
+  - CN    # China
+  - Global
