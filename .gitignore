@@ -8,4 +8,8 @@ build/
 venv/
 data/seed_creators.json
 data/predictions.json
+data/taxonomy_health_*.json
 .DS_Store
+airflow/logs/
+*.json.key
+gcp-key.json

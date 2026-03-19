@@ -15,7 +15,7 @@ from src.tagging.prompts import (
     format_taxonomy_l2,
     format_video_titles,
 )
-from src.tagging.schema import CreatorInput, L1Result, L2Result, TaggingOutput
+from src.tagging.schema import CreatorInput, L1Result, L2Result, TagSuggestion, TaggingOutput
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +60,7 @@ class LLMTagger:
         raw = self._call_llm(prompt)
         return L1Result.model_validate(raw)
 
-    def stage2_tag(self, creator: CreatorInput, l1_result: L1Result) -> L2Result:
+    def stage2_tag(self, creator: CreatorInput, l1_result: L1Result) -> tuple[L2Result, list[TagSuggestion]]:
         """Stage 2: Predict specific L2 tags within L1 categories."""
         l1_categories = [c.tag for c in l1_result.categories]
         prompt = STAGE2_PROMPT.format(
@@ -71,7 +71,12 @@ class LLMTagger:
             video_titles=format_video_titles(creator.recent_video_titles),
         )
         raw = self._call_llm(prompt)
-        return L2Result.model_validate(raw)
+        l2_result = L2Result.model_validate(raw)
+        suggestions = [
+            TagSuggestion.model_validate(s)
+            for s in raw.get("suggested_new_tags", [])
+        ]
+        return l2_result, suggestions
 
     def tag_creator(self, creator: CreatorInput) -> TaggingOutput:
         """Full 2-stage tagging pipeline for a single creator."""
@@ -83,11 +88,15 @@ class LLMTagger:
             f"  Stage 1 → {[c.tag for c in l1_result.categories]}"
         )
 
-        # Stage 2: L2 tagging
-        l2_result = self.stage2_tag(creator, l1_result)
+        # Stage 2: L2 tagging + new tag suggestions
+        l2_result, suggestions = self.stage2_tag(creator, l1_result)
         logger.info(
             f"  Stage 2 → {[t.tag for t in l2_result.tags]}"
         )
+        if suggestions:
+            logger.info(
+                f"  Suggested new tags → {[s.suggested_tag for s in suggestions]}"
+            )
 
         return TaggingOutput(
             creator_id=creator.channel_id,
@@ -95,4 +104,5 @@ class LLMTagger:
             l2_tags=l2_result.tags,
             model=self.model,
             prompt_version=self.prompt_version,
+            suggested_new_tags=suggestions,
         )

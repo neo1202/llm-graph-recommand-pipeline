@@ -14,12 +14,19 @@ class L2Result(BaseModel):
     tags: list[TagPrediction]
 
 
+class TagSuggestion(BaseModel):
+    suggested_tag: str
+    parent_l1: str
+    reason: str
+
+
 class TaggingOutput(BaseModel):
     creator_id: str
     l1_tags: list[TagPrediction]
     l2_tags: list[TagPrediction]
     model: str
     prompt_version: int
+    suggested_new_tags: list[TagSuggestion] = []
 
 
 class CreatorInput(BaseModel):

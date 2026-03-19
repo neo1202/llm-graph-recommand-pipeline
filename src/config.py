@@ -19,6 +19,11 @@ class Settings(BaseSettings):
     confidence_threshold: float = 0.7
     batch_size: int = 10
 
+    # GCP
+    gcp_project_id: str = ""
+    gcs_bucket: str = ""
+    bigquery_dataset: str = "ikala_analytics"
+
     model_config = {"env_file": ".env"}
 
 

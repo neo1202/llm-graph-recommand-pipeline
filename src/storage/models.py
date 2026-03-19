@@ -58,6 +58,18 @@ class AuditLog(Base):
     created_at = Column(DateTime, server_default=func.now())
 
 
+class TagSuggestionLog(Base):
+    __tablename__ = "tag_suggestions"
+
+    id = Column(Integer, primary_key=True)
+    creator_id = Column(Integer, ForeignKey("creators.id"), nullable=True, index=True)
+    suggested_tag = Column(String(128), nullable=False)
+    parent_l1 = Column(String(128), nullable=False)
+    reason = Column(Text, default="")
+    status = Column(String(16), default="pending")  # pending, accepted, rejected
+    created_at = Column(DateTime, server_default=func.now())
+
+
 class ReviewQueue(Base):
     __tablename__ = "review_queue"
 

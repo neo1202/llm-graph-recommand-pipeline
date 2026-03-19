@@ -14,7 +14,7 @@ from src.config import settings
 from src.graph.neo4j_client import get_neo4j_client
 from src.graph.taxonomy_loader import get_taxonomy_tree, init_taxonomy_graph
 from src.quality.gate import QualityGate
-from src.storage.models import AuditLog, Creator, ReviewQueue, TaggingResult
+from src.storage.models import AuditLog, Creator, ReviewQueue, TaggingResult, TagSuggestionLog
 from src.storage.postgres_client import get_session, init_db
 from src.tagging.llm_tagger import LLMTagger
 from src.tagging.schema import CreatorInput
@@ -167,6 +167,15 @@ def run_pipeline(
                         tag_name=tag.tag,
                         tag_level=level,
                         confidence=tag.confidence,
+                    ))
+
+                # Store LLM suggested new tags
+                for suggestion in tagging_result.suggested_new_tags:
+                    session.add(TagSuggestionLog(
+                        creator_id=db_creator.id,
+                        suggested_tag=suggestion.suggested_tag,
+                        parent_l1=suggestion.parent_l1,
+                        reason=suggestion.reason,
                     ))
 
                 # Step 4: Every creator enters review queue (Neo4j write deferred until approval)
