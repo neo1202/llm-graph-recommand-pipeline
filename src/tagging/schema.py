@@ -12,6 +12,7 @@ class L1Result(BaseModel):
 
 class L2Result(BaseModel):
     tags: list[TagPrediction]
+    candidate_tags: list[TagPrediction] = []
 
 
 class TagSuggestion(BaseModel):
@@ -24,6 +25,7 @@ class TaggingOutput(BaseModel):
     creator_id: str
     l1_tags: list[TagPrediction]
     l2_tags: list[TagPrediction]
+    candidate_tags: list[TagPrediction] = []
     model: str
     prompt_version: int
     suggested_new_tags: list[TagSuggestion] = []

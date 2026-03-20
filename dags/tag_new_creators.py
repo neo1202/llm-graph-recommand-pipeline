@@ -126,10 +126,17 @@ def task_tag_creators(**context):
                     ))
 
                 has_issues = len(qa_report.issues) > 0
+                review_details = {
+                    "issues": qa_report.issues if has_issues else [],
+                    "candidate_tags": [
+                        {"tag": t.tag, "confidence": t.confidence}
+                        for t in tagging_result.candidate_tags
+                    ],
+                }
                 session.add(ReviewQueue(
                     creator_id=creator.id,
                     reason="flagged" if has_issues else "auto_pass",
-                    details=json.dumps(qa_report.issues) if has_issues else "[]",
+                    details=json.dumps(review_details),
                 ))
                 session.add(AuditLog(
                     creator_id=creator.id, action="tagged",

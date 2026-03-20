@@ -88,10 +88,11 @@ class LLMTagger:
             f"  Stage 1 → {[c.tag for c in l1_result.categories]}"
         )
 
-        # Stage 2: L2 tagging + new tag suggestions
+        # Stage 2: L2 tagging + candidates + new tag suggestions
         l2_result, suggestions = self.stage2_tag(creator, l1_result)
         logger.info(
             f"  Stage 2 → {[t.tag for t in l2_result.tags]}"
+            f"  Candidates → {[t.tag for t in l2_result.candidate_tags]}"
         )
         if suggestions:
             logger.info(
@@ -102,6 +103,7 @@ class LLMTagger:
             creator_id=creator.channel_id,
             l1_tags=l1_result.categories,
             l2_tags=l2_result.tags,
+            candidate_tags=l2_result.candidate_tags,
             model=self.model,
             prompt_version=self.prompt_version,
             suggested_new_tags=suggestions,

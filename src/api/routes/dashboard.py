@@ -197,10 +197,17 @@ def add_creator_by_query(
 
     # Step 6: Always add to review queue
     has_issues = len(qa_report.issues) > 0
+    review_details = {
+        "issues": qa_report.issues if has_issues else [],
+        "candidate_tags": [
+            {"tag": t.tag, "confidence": t.confidence}
+            for t in tagging_result.candidate_tags
+        ],
+    }
     db.add(ReviewQueue(
         creator_id=db_creator.id,
         reason="flagged" if has_issues else "auto_pass",
-        details=json.dumps(qa_report.issues) if has_issues else "[]",
+        details=json.dumps(review_details),
     ))
 
     db.add(AuditLog(
@@ -227,6 +234,15 @@ def get_review_queue(
     db: Session = Depends(get_db),
 ):
     """Get review queue with full creator info and tags from PostgreSQL."""
+    # Always compute counts from unfiltered query (fixes count bug)
+    base_query = (
+        db.query(ReviewQueue)
+        .filter(ReviewQueue.status == status)
+    )
+    total_flagged = base_query.filter(ReviewQueue.reason == "flagged").count()
+    total_passed = base_query.filter(ReviewQueue.reason == "auto_pass").count()
+
+    # Now apply filter for items
     query = (
         db.query(ReviewQueue, Creator)
         .join(Creator, ReviewQueue.creator_id == Creator.id)
@@ -241,7 +257,6 @@ def get_review_queue(
 
     results = []
     for rq, c in items:
-        # Read tags from PostgreSQL (staging)
         pg_tags = (
             db.query(TaggingResult)
             .filter_by(creator_id=c.id)
@@ -249,7 +264,15 @@ def get_review_queue(
             .all()
         )
 
-        issues = json.loads(rq.details) if rq.details else []
+        # Parse details: supports both old format (list) and new format (dict)
+        raw_details = json.loads(rq.details) if rq.details else {}
+        if isinstance(raw_details, list):
+            issues = raw_details
+            candidate_tags = []
+        else:
+            issues = raw_details.get("issues", [])
+            candidate_tags = raw_details.get("candidate_tags", [])
+
         video_titles = json.loads(c.video_titles) if c.video_titles else []
 
         results.append({
@@ -268,6 +291,7 @@ def get_review_queue(
                 {"tag": t.tag_name, "level": t.tag_level, "confidence": t.confidence}
                 for t in pg_tags
             ],
+            "candidate_tags": candidate_tags,
             "issues": issues if isinstance(issues, list) else [],
             "status": rq.status,
             "created_at": rq.created_at.isoformat() if rq.created_at else None,
@@ -276,9 +300,9 @@ def get_review_queue(
     return {
         "items": results,
         "counts": {
-            "total": len(results),
-            "flagged": sum(1 for r in results if r["has_issues"]),
-            "passed": sum(1 for r in results if not r["has_issues"]),
+            "total": total_flagged + total_passed,
+            "flagged": total_flagged,
+            "passed": total_passed,
         },
     }
 

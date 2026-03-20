@@ -199,27 +199,21 @@
                     </div>
                 </div>
 
-                <!-- Candidate tags grouped by L1 -->
-                <div>
-                    <p class="text-[11px] font-medium text-slate-400 uppercase tracking-wider mb-2">Available Tags <span class="text-slate-300 normal-case">(click to add)</span></p>
-                    <div v-for="group in taxonomy" :key="group.l1" class="mb-2">
-                        <div class="flex flex-wrap gap-1 items-center">
-                            <!-- L1 tag -->
-                            <span v-if="!isTagActive(item.review_id, group.l1)"
-                                  @click="addTag(item.review_id, {tag: group.l1, level: 'L1', confidence: 1.0})"
-                                  class="tag-pill tag-pill-click bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 border border-dashed border-red-200">
-                                + {{ group.l1 }}
+                <!-- LLM-suggested candidate tags -->
+                <div v-if="item.candidate_tags?.length">
+                    <p class="text-[11px] font-medium text-slate-400 uppercase tracking-wider mb-2">LLM Suggestions <span class="text-slate-300 normal-case">(click to add)</span></p>
+                    <div class="flex flex-wrap gap-1.5">
+                        <template v-for="ct in item.candidate_tags">
+                            <span v-if="!isTagActive(item.review_id, ct.tag)"
+                                  @click="addTag(item.review_id, {tag: ct.tag, level: 'L2', confidence: ct.confidence})"
+                                  class="tag-pill tag-pill-click bg-violet-50 text-violet-500 hover:bg-violet-100 hover:text-violet-700 border border-dashed border-violet-200">
+                                + {{ ct.tag }} <span class="opacity-50">{{ ct.confidence.toFixed(2) }}</span>
                             </span>
-                            <!-- L2 tags -->
-                            <template v-for="l2 in group.children">
-                                <span v-if="!isTagActive(item.review_id, l2)"
-                                      @click="addTag(item.review_id, {tag: l2, level: 'L2', confidence: 1.0})"
-                                      class="tag-pill tag-pill-click bg-blue-50/50 text-blue-400 hover:bg-blue-100 hover:text-blue-600 border border-dashed border-blue-200">
-                                    + {{ l2 }}
-                                </span>
-                            </template>
-                        </div>
+                        </template>
                     </div>
+                </div>
+                <div v-else>
+                    <p class="text-[11px] text-slate-300 italic">No additional suggestions from LLM</p>
                 </div>
             </div>
 
@@ -307,11 +301,7 @@ createApp({
             try { stats.value = await (await fetch(API+'/stats')).json(); } catch {}
         }
 
-        // Taxonomy for tag picker
-        const taxonomy = ref([]);
-        async function loadTaxonomy() {
-            try { taxonomy.value = await (await fetch(API+'/taxonomy')).json(); } catch {}
-        }
+        // (taxonomy loaded on-demand via /taxonomy endpoint if needed)
 
         // Tag edit states: { [review_id]: { currentTags: [...], originalTags: [...] } }
         const editStates = reactive({});
@@ -462,10 +452,10 @@ createApp({
             } catch(e) { box.innerHTML=`<p style="text-align:center;padding-top:250px;color:#f87171">${e.message}</p>`; }
         }
 
-        onMounted(() => { loadStats(); loadTaxonomy(); });
+        onMounted(() => { loadStats(); });
 
         return {
-            tab, tabs, stats, taxonomy, switchTab,
+            tab, tabs, stats, switchTab,
             addQuery, addUser, previewData, previewing, tagResult, tagging,
             preview, tagCreator,
             reviewItems, reviewFilter, reviewLoading, reviewCounts, loadReview, resolveReview,

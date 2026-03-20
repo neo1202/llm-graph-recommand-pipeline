@@ -49,17 +49,20 @@ Return a JSON object with this exact structure:
   "tags": [
     {{"tag": "<L2 tag name>", "confidence": <0.0-1.0>}}
   ],
+  "candidate_tags": [
+    {{"tag": "<L2 tag name>", "confidence": <0.0-1.0>}}
+  ],
   "suggested_new_tags": [
     {{"suggested_tag": "<new tag name>", "parent_l1": "<L1 category>", "reason": "<why this tag should exist>"}}
   ]
 }}
 
 Rules:
-- Only use tag names from the provided L2 lists above for "tags"
-- Assign 1-5 L2 tags total
+- "tags": your confident picks (1-5 tags, confidence >= 0.6)
+- "candidate_tags": 2-5 additional tags that MIGHT also apply but you're less sure about (confidence 0.3-0.6). These are shown to human reviewers as suggestions they can add with one click
+- Only use tag names from the provided L2 lists above for both "tags" and "candidate_tags"
 - Each tag must belong to one of the predicted L1 categories
-- Confidence should reflect how well the tag matches the creator's content
-- If none of the available L2 tags accurately describe this creator's content niche, suggest a new tag in "suggested_new_tags" with the parent L1 category and a brief reason
+- If none of the available L2 tags accurately describe this creator's content niche, suggest a new tag in "suggested_new_tags"
 - If the existing L2 tags are sufficient, return an empty array for "suggested_new_tags"
 - A "Cooking_Tutorial" channel that also reviews restaurants could get both Cooking_Tutorial and Restaurant_Review"""
 

@@ -53,10 +53,17 @@ def tag_creator(
 
     # Step 4: Add to review queue
     has_issues = len(qa_report.issues) > 0
+    review_details = {
+        "issues": qa_report.issues if has_issues else [],
+        "candidate_tags": [
+            {"tag": t.tag, "confidence": t.confidence}
+            for t in tagging_result.candidate_tags
+        ],
+    }
     db.add(ReviewQueue(
         creator_id=db_creator.id,
         reason="flagged" if has_issues else "auto_pass",
-        details=json.dumps(qa_report.issues) if has_issues else "[]",
+        details=json.dumps(review_details),
     ))
 
     db.add(AuditLog(
